@@ -1,0 +1,28 @@
+{
+  "name": "jackaroo-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "tsx --test src/*.test.ts src/jackaroo/*.test.ts src/simulation/*.test.ts",
+    "test:jackaroo": "tsx --test src/jackaroo/*.test.ts",
+    "test:simulation": "tsx --test src/simulation/*.test.ts",
+    "simulate:jackaroo": "tsx src/simulation/cli.ts",
+    "prisma:validate": "prisma validate",
+    "prisma:generate": "prisma generate"
+  },
+  "dependencies": { "@prisma/client": "6.19.0", "dotenv": "^16.6.1" },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "~5.9.2",
+    "tsx": "^4.20.0",
+    "prisma": "6.19.0",
+    "eslint": "^9.25.0",
+    "typescript-eslint": "^8.0.0"
+  }
+}

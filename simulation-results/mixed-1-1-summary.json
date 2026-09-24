@@ -1,0 +1,88 @@
+{
+  "summary": {
+    "options": {
+      "games": 1,
+      "seed": 1,
+      "maxActions": 5000,
+      "policy": "mixed"
+    },
+    "completed": 1,
+    "failed": 0,
+    "winners": {
+      "Player A": 0,
+      "Player B": 1
+    },
+    "actions": 122,
+    "minActions": 122,
+    "maxActions": 122,
+    "redeals": 12,
+    "reshuffles": 2,
+    "captures": 1,
+    "ownKingKills": 0,
+    "normalCaptures": 1,
+    "kingCaptures": 0,
+    "releaseCaptures": 0,
+    "homeEntries": 7,
+    "emptyPasses": 5,
+    "queenSkips": 10,
+    "splitSevens": 1,
+    "releases": 9,
+    "swaps": 5,
+    "discards": 35,
+    "rejectedProbes": 245,
+    "playedRanks": {
+      "2": 8,
+      "3": 7,
+      "4": 6,
+      "5": 5,
+      "6": 5,
+      "7": 6,
+      "8": 6,
+      "9": 7,
+      "10": 4,
+      "A": 7,
+      "J": 5,
+      "Q": 10,
+      "K": 11
+    }
+  },
+  "games": [
+    {
+      "seed": 1,
+      "policy": "mixed",
+      "winnerId": "Player B",
+      "actions": 122,
+      "hands": 13,
+      "redeals": 12,
+      "reshuffles": 2,
+      "captures": 1,
+      "ownKingKills": 0,
+      "homeEntries": 7,
+      "emptyPasses": 5,
+      "queenSkips": 10,
+      "splitSevens": 1,
+      "releases": 9,
+      "swaps": 5,
+      "discards": 35,
+      "normalCaptures": 1,
+      "kingCaptures": 0,
+      "releaseCaptures": 0,
+      "rejectedProbes": 245,
+      "playedRanks": {
+        "2": 8,
+        "3": 7,
+        "4": 6,
+        "5": 5,
+        "6": 5,
+        "7": 6,
+        "8": 6,
+        "9": 7,
+        "10": 4,
+        "A": 7,
+        "J": 5,
+        "Q": 10,
+        "K": 11
+      }
+    }
+  ]
+}
