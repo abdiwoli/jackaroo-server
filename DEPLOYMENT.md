@@ -20,7 +20,8 @@ For the standalone `jackaroo-server` GitHub repository:
 If deploying from a parent repository containing both projects, set Root Directory
 to `jackaroo-server` instead.
 
-Storage remains in memory in this deployment fix. Durable game/session storage
-is a separate follow-up.
+Room storage defaults to memory until PostgreSQL is configured. See
+[PostgreSQL activation](POSTGRES-ROOMS.md) for migrations, environment variables,
+and database verification.
 
 Reference: https://vercel.com/docs/functions/runtimes/node-js

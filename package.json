@@ -5,16 +5,20 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc",
+    "build": "prisma generate && tsc",
+    "postinstall": "prisma generate",
+    "vercel-build": "npm run build",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "test": "tsx --test src/*.test.ts src/jackaroo/*.test.ts src/simulation/*.test.ts",
     "test:jackaroo": "tsx --test src/jackaroo/*.test.ts",
     "test:simulation": "tsx --test src/simulation/*.test.ts",
+    "test:postgres": "tsx --test src/postgres-rooms.test.ts",
     "simulate:jackaroo": "tsx src/simulation/cli.ts",
     "prisma:validate": "prisma validate",
-    "prisma:generate": "prisma generate"
+    "prisma:generate": "prisma generate",
+    "prisma:migrate:deploy": "prisma migrate deploy"
   },
   "dependencies": { "@prisma/client": "6.19.0", "dotenv": "^16.6.1" },
   "devDependencies": {

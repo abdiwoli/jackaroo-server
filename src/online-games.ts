@@ -4,11 +4,51 @@ import { applyAction, createGame, getLegalActions, startGame } from './jackaroo/
 import type { GameAction, GameState, LegalAction } from './jackaroo/types.js';
 import { LocalGameError } from './local-games.js';
 
-interface Room {
+export interface Room {
   id: string; code: string; revision: number; state: GameState; tokens: string[];
   updated: number; lastAction: LegalAction | null;
   lastPlayed: { card: GameState['discard'][number]; playerId: string; revision: number } | null;
 }
+export function authenticate(room: Room, token: string) {
+  const seat = token ? room.tokens.indexOf(token) : -1;
+  if (seat < 0) throw new LocalGameError(401, 'Invalid player session.');
+  return seat;
+}
+export function roomView(room: Room, seat: number) {
+  const state = room.state;
+  const player = state.players[seat]!;
+  return {
+    id: room.id, roomCode: room.code, revision: room.revision, status: state.status,
+    viewerPlayerId: player.id, joinedPlayers: room.tokens.length,
+    board: structuredClone(state.board), currentPlayerId: state.currentPlayerId,
+    winnerId: state.winnerId, handNumber: state.handNumber,
+    pendingDiscardPlayerId: state.pendingDiscardPlayerId,
+    players: state.players.map((p, index) => ({ id: p.id, name: `Player ${index + 1}`,
+      start: p.start, marbles: structuredClone(p.marbles), cardCount: p.hand.length })),
+    hand: structuredClone(player.hand),
+    legalActions: state.currentPlayerId === player.id ? getLegalActions(state) : [],
+    discardCards: structuredClone(state.discard.slice(-5)), discardCount: state.discard.length,
+    lastPlayed: structuredClone(room.lastPlayed), lastAction: structuredClone(room.lastAction),
+  };
+}
+export function advanceRoom(room: Room, token: string, revision: unknown, action: unknown) {
+  const seat = authenticate(room, token);
+  if (!Number.isInteger(revision) || revision !== room.revision)
+    throw new LocalGameError(409, 'Board changed. Synchronizing your game.');
+  if (!action || typeof action !== 'object' || Array.isArray(action))
+    throw new LocalGameError(400, 'Invalid action.');
+  const move = action as GameAction;
+  if (move.playerId !== room.state.players[seat]!.id || move.playerId !== room.state.currentPlayerId)
+    throw new LocalGameError(403, 'Wait for your turn.');
+  const next = applyAction(room.state, move);
+  const preview = getLegalActions(room.state).find(candidate => isDeepStrictEqual(candidate.action, move));
+  const card = room.state.players[seat]!.hand.find(card => card.id === move.cardId)!;
+  room.lastPlayed = { card: structuredClone(card), playerId: move.playerId, revision: room.revision + 1 };
+  room.lastAction = preview ?? null;
+  room.state = next; room.revision++; room.updated = Date.now();
+  return roomView(room, seat);
+}
+
 export function createOnlineGameStore() {
   const rooms = new Map<string, Room>();
   function lookup(id: string) {
@@ -18,28 +58,6 @@ export function createOnlineGameStore() {
       throw new LocalGameError(404, 'Room expired or server restarted. Create a new room.');
     }
     return room;
-  }
-  function authenticate(room: Room, token: string) {
-    const seat = token ? room.tokens.indexOf(token) : -1;
-    if (seat < 0) throw new LocalGameError(401, 'Invalid player session.');
-    return seat;
-  }
-  function view(room: Room, seat: number) {
-    const state = room.state;
-    const player = state.players[seat]!;
-    return {
-      id: room.id, roomCode: room.code, revision: room.revision, status: state.status,
-      viewerPlayerId: player.id, joinedPlayers: room.tokens.length,
-      board: structuredClone(state.board), currentPlayerId: state.currentPlayerId,
-      winnerId: state.winnerId, handNumber: state.handNumber,
-      pendingDiscardPlayerId: state.pendingDiscardPlayerId,
-      players: state.players.map((p, index) => ({ id: p.id, name: `Player ${index + 1}`,
-        start: p.start, marbles: structuredClone(p.marbles), cardCount: p.hand.length })),
-      hand: structuredClone(player.hand),
-      legalActions: state.currentPlayerId === player.id ? getLegalActions(state) : [],
-      discardCards: structuredClone(state.discard.slice(-5)), discardCount: state.discard.length,
-      lastPlayed: structuredClone(room.lastPlayed), lastAction: structuredClone(room.lastAction),
-    };
   }
   return {
     create() {
@@ -52,7 +70,7 @@ export function createOnlineGameStore() {
         state: createGame([randomUUID(), randomUUID()]), tokens: [randomBytes(32).toString('hex')],
         updated: Date.now(), lastAction: null, lastPlayed: null };
       rooms.set(room.id, room);
-      return { token: room.tokens[0]!, game: view(room, 0) };
+      return { token: room.tokens[0]!, game: roomView(room, 0) };
     },
     join(code: unknown) {
       if (typeof code !== 'string' || !/^[A-F0-9]{8}$/.test(code.trim().toUpperCase()))
@@ -63,31 +81,15 @@ export function createOnlineGameStore() {
       if (room.tokens.length === 2) throw new LocalGameError(409, 'This room already has two players.');
       room.tokens.push(randomBytes(32).toString('hex'));
       room.state = startGame(room.state); room.revision++; room.updated = Date.now();
-      return { token: room.tokens[1]!, game: view(room, 1) };
+      return { token: room.tokens[1]!, game: roomView(room, 1) };
     },
     get(id: string, token: string) {
       const room = lookup(id);
-      return view(room, authenticate(room, token));
+      return roomView(room, authenticate(room, token));
     },
     act(id: string, token: string, revision: unknown, action: unknown) {
       const room = lookup(id);
-      const seat = authenticate(room, token);
-      if (!Number.isInteger(revision) || revision !== room.revision)
-        throw new LocalGameError(409, 'Board changed. Synchronizing your game.');
-      if (!action || typeof action !== 'object' || Array.isArray(action))
-        throw new LocalGameError(400, 'Invalid action.');
-      const move = action as GameAction;
-      if (move.playerId !== room.state.players[seat]!.id || move.playerId !== room.state.currentPlayerId)
-        throw new LocalGameError(403, 'Wait for your turn.');
-      const next = applyAction(room.state, move);
-      // Use the engine preview for public animation, never trust client path data.
-      const preview = getLegalActions(room.state).find(candidate =>
-        isDeepStrictEqual(candidate.action, move));
-      const card = room.state.players[seat]!.hand.find(card => card.id === move.cardId)!;
-      room.lastPlayed = { card: structuredClone(card), playerId: move.playerId, revision: room.revision + 1 };
-      room.lastAction = preview ?? null;
-      room.state = next; room.revision++; room.updated = Date.now();
-      return view(room, seat);
+      return advanceRoom(room, token, revision, action);
     },
   };
 }

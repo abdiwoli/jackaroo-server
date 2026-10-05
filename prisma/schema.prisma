@@ -5,3 +5,15 @@ datasource db {
   provider = "postgresql"
   url = env("DATABASE_URL")
 }
+
+model GameRoom {
+  id          String   @id @db.Uuid
+  code        String   @unique @db.VarChar(8)
+  revision    Int      @default(0)
+  payload     Json
+  tokenHashes String[]
+  updatedAt   DateTime @db.Timestamptz(3)
+  expiresAt   DateTime @db.Timestamptz(3)
+
+  @@index([expiresAt])
+}

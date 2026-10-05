@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { createLocalGameStore, LocalGameError } from './local-games.js';
 import { RuleError } from './jackaroo/rules.js';
-import { createOnlineGameStore } from './online-games.js';
+import { createConfiguredOnlineGameStore, type OnlineGameStore } from './room-storage.js';
 
 async function readBody(request: IncomingMessage): Promise<Record<string, unknown>> {
   let bytes = 0;
@@ -19,9 +19,8 @@ async function readBody(request: IncomingMessage): Promise<Record<string, unknow
   } catch { throw new LocalGameError(400, 'Expected a JSON object'); }
 }
 
-export function createRequestHandler() {
+export function createRequestHandler(online: OnlineGameStore = createConfiguredOnlineGameStore()) {
   const games = createLocalGameStore();
-  const online = createOnlineGameStore();
   async function handle(request: IncomingMessage, response: ServerResponse) {
     const path = new URL(request.url ?? '/', 'http://localhost').pathname;
     if (request.method === 'OPTIONS') { response.writeHead(204); response.end(); return; }
@@ -34,23 +33,24 @@ export function createRequestHandler() {
       response.writeHead(201); response.end(JSON.stringify(games.create())); return;
     }
     if (request.method === 'POST' && path === '/online-games') {
-      response.writeHead(201); response.end(JSON.stringify(online.create())); return;
+      const session = await online.create();
+      response.writeHead(201); response.end(JSON.stringify(session)); return;
     }
     if (request.method === 'POST' && path === '/online-games/join') {
       const body = await readBody(request);
-      const session = online.join(body.code);
+      const session = await online.join(body.code);
       response.writeHead(200); response.end(JSON.stringify(session)); return;
     }
     const onlineMatch = /^\/online-games\/([^/]+)(\/actions)?$/.exec(path);
     if (onlineMatch) {
       const token = request.headers.authorization?.replace(/^Bearer /, '') ?? '';
       if (request.method === 'GET' && !onlineMatch[2]) {
-        const view = online.get(onlineMatch[1]!, token);
+        const view = await online.get(onlineMatch[1]!, token);
         response.writeHead(200); response.end(JSON.stringify(view)); return;
       }
       if (request.method === 'POST' && onlineMatch[2]) {
         const body = await readBody(request);
-        const view = online.act(onlineMatch[1]!, token, body.revision, body.action);
+        const view = await online.act(onlineMatch[1]!, token, body.revision, body.action);
         response.writeHead(200); response.end(JSON.stringify(view)); return;
       }
     }
@@ -80,6 +80,6 @@ export function createRequestHandler() {
   };
 }
 
-export function createApp() {
-  return createServer(createRequestHandler());
+export function createApp(online?: OnlineGameStore) {
+  return createServer(createRequestHandler(online));
 }
