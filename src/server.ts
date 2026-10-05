@@ -6,6 +6,9 @@ if (!Number.isInteger(port) || port < 1 || port > 65535) {
   throw new Error('PORT must be an integer between 1 and 65535');
 }
 const server = createApp();
+// Vercel's runtime loads the entry point's default export.
+export default server;
+
 server.listen(port, process.env.HOST ?? '0.0.0.0', () => {
   console.log(`Jackaroo backend listening on port ${port}`);
 });
