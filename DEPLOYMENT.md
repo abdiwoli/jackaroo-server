@@ -1,8 +1,11 @@
 # Vercel backend deployment
 
-This repository deploys as a Node HTTP backend, using `src/server.ts`.
+This repository deploys as a Vercel Node function, using `src/vercel.ts`.
 `src/index.ts` keeps the existing local `npm run dev` and `npm start` commands working.
-`vercel.json` selects the Node framework instead of static website output.
+`vercel.json` explicitly builds that handler with `@vercel/node` and routes all
+requests to it, preserving paths such as `/health`. The function exports an async
+request handler and does not start a listening socket. Local startup continues to
+use `src/server.ts`. Both entry points share the same application handler.
 
 For the standalone `jackaroo-server` GitHub repository:
 

@@ -19,7 +19,7 @@ async function readBody(request: IncomingMessage): Promise<Record<string, unknow
   } catch { throw new LocalGameError(400, 'Expected a JSON object'); }
 }
 
-export function createApp() {
+export function createRequestHandler() {
   const games = createLocalGameStore();
   const online = createOnlineGameStore();
   async function handle(request: IncomingMessage, response: ServerResponse) {
@@ -66,16 +66,20 @@ export function createApp() {
     }
     response.writeHead(404); response.end(JSON.stringify({ error: 'Not found' }));
   }
-  return createServer((request, response) => {
+  return async (request: IncomingMessage, response: ServerResponse) => {
     response.setHeader('Access-Control-Allow-Origin', '*');
     response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     response.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     response.setHeader('Content-Type', 'application/json');
     response.setHeader('Cache-Control', 'no-store');
-    void handle(request, response).catch(error => {
+    await handle(request, response).catch(error => {
       const status = error instanceof LocalGameError ? error.status : error instanceof RuleError ? 422 : 500;
       response.writeHead(status);
       response.end(JSON.stringify({ error: status === 500 ? 'Unexpected server error' : error.message }));
     });
-  });
+  };
+}
+
+export function createApp() {
+  return createServer(createRequestHandler());
 }
