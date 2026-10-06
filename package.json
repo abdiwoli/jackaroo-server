@@ -20,13 +20,17 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate:deploy": "prisma migrate deploy"
   },
-  "dependencies": { "@prisma/client": "6.19.0", "dotenv": "^16.6.1" },
+  "dependencies": {
+    "@prisma/client": "6.19.0",
+    "dotenv": "^16.6.1",
+    "livekit-server-sdk": "^2.19.1"
+  },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "typescript": "~5.9.2",
-    "tsx": "^4.20.0",
-    "prisma": "6.19.0",
     "eslint": "^9.25.0",
+    "prisma": "6.19.0",
+    "tsx": "^4.20.0",
+    "typescript": "~5.9.2",
     "typescript-eslint": "^8.0.0"
   }
 }

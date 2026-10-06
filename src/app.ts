@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { createLocalGameStore, LocalGameError } from './local-games.js';
 import { RuleError } from './jackaroo/rules.js';
 import { createConfiguredOnlineGameStore, type OnlineGameStore } from './room-storage.js';
+import { createVoiceSession, type VoiceConfiguration } from './voice.js';
 
 async function readBody(request: IncomingMessage): Promise<Record<string, unknown>> {
   let bytes = 0;
@@ -19,7 +20,7 @@ async function readBody(request: IncomingMessage): Promise<Record<string, unknow
   } catch { throw new LocalGameError(400, 'Expected a JSON object'); }
 }
 
-export function createRequestHandler(online: OnlineGameStore = createConfiguredOnlineGameStore()) {
+export function createRequestHandler(online: OnlineGameStore = createConfiguredOnlineGameStore(), voice?: VoiceConfiguration) {
   const games = createLocalGameStore();
   async function handle(request: IncomingMessage, response: ServerResponse) {
     const path = new URL(request.url ?? '/', 'http://localhost').pathname;
@@ -39,6 +40,12 @@ export function createRequestHandler(online: OnlineGameStore = createConfiguredO
     if (request.method === 'POST' && path === '/online-games/join') {
       const body = await readBody(request);
       const session = await online.join(body.code);
+      response.writeHead(200); response.end(JSON.stringify(session)); return;
+    }
+    const voiceMatch = /^\/online-games\/([^/]+)\/voice-token$/.exec(path);
+    if (voiceMatch && request.method === 'POST') {
+      const token = request.headers.authorization?.replace(/^Bearer /, '') ?? '';
+      const session = await createVoiceSession(online, voiceMatch[1]!, token, voice);
       response.writeHead(200); response.end(JSON.stringify(session)); return;
     }
     const onlineMatch = /^\/online-games\/([^/]+)(\/actions)?$/.exec(path);
