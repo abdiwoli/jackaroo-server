@@ -16,8 +16,8 @@ test('PostgreSQL preserves rooms across clients and atomically rejects competing
   try {
     const a = createPersistentOnlineGameStore(createPostgresRoomRepository(first));
     const b = createPersistentOnlineGameStore(createPostgresRoomRepository(second));
-    const host = await a.create(); roomId = host.game.id;
-    const joins = await Promise.allSettled([a.join(host.game.roomCode), b.join(host.game.roomCode)]);
+    const host = await a.create('Abdi Woli'); roomId = host.game.id;
+    const joins = await Promise.allSettled([a.join(host.game.roomCode, 'محمد'), b.join(host.game.roomCode, 'محمد')]);
     assert.equal(joins.filter(result => result.status === 'fulfilled').length, 1);
     const guest = joins.find(result => result.status === 'fulfilled');
     assert.ok(guest && guest.status === 'fulfilled');
@@ -25,6 +25,7 @@ test('PostgreSQL preserves rooms across clients and atomically rejects competing
     const restored = createPersistentOnlineGameStore(createPostgresRoomRepository(third));
     const view = await restored.get(roomId, host.token);
     assert.equal(view.joinedPlayers, 2);
+    assert.deepEqual(view.players.map(player => player.name), ['Abdi Woli', 'محمد']);
     const guestView = await restored.get(roomId, guest.value.token);
     assert.ok(view.hand.every(card => !guestView.hand.some(other => other.id === card.id)));
     const row = await third.gameRoom.findUniqueOrThrow({ where: { id: roomId } });
@@ -37,6 +38,7 @@ test('PostgreSQL preserves rooms across clients and atomically rejects competing
     assert.equal(moves.filter(result => result.status === 'fulfilled').length, 1);
     const after = await restored.get(roomId, host.token);
     assert.equal(after.revision, view.revision + 1);
+    assert.deepEqual(after.players.map(player => player.name), ['Abdi Woli', 'محمد']);
     assert.deepEqual(after.lastAction, choice);
     await third.gameRoom.update({ where: { id: roomId }, data: {
       updatedAt: new Date(Date.now() - 86400001), expiresAt: new Date(Date.now() - 1),

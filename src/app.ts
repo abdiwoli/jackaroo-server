@@ -34,12 +34,14 @@ export function createRequestHandler(online: OnlineGameStore = createConfiguredO
       response.writeHead(201); response.end(JSON.stringify(games.create())); return;
     }
     if (request.method === 'POST' && path === '/online-games') {
-      const session = await online.create();
+      const hasBody = Number(request.headers['content-length'] ?? 0) > 0 || !!request.headers['transfer-encoding'];
+      const body = hasBody ? await readBody(request) : {};
+      const session = await online.create(body.name);
       response.writeHead(201); response.end(JSON.stringify(session)); return;
     }
     if (request.method === 'POST' && path === '/online-games/join') {
       const body = await readBody(request);
-      const session = await online.join(body.code);
+      const session = await online.join(body.code, body.name);
       response.writeHead(200); response.end(JSON.stringify(session)); return;
     }
     const voiceMatch = /^\/online-games\/([^/]+)\/voice-token$/.exec(path);

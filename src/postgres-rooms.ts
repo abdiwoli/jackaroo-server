@@ -7,7 +7,7 @@ function encode(room: Room) {
   return {
     id: room.id, code: room.code, revision: room.revision,
     payload: JSON.parse(JSON.stringify({
-      state: room.state, lastAction: room.lastAction, lastPlayed: room.lastPlayed,
+      state: room.state, names: room.names, lastAction: room.lastAction, lastPlayed: room.lastPlayed,
     })) as Prisma.InputJsonValue,
     tokenHashes: room.tokens, updatedAt: new Date(room.updated),
     expiresAt: new Date(room.updated + 86400000),
@@ -15,7 +15,7 @@ function encode(room: Room) {
 }
 function decode(row: GameRoom | null): Room | null {
   if (!row) return null;
-  const payload = row.payload as unknown as Pick<Room, 'state' | 'lastAction' | 'lastPlayed'>;
+  const payload = row.payload as unknown as Pick<Room, 'state' | 'names' | 'lastAction' | 'lastPlayed'>;
   return { id: row.id, code: row.code, revision: row.revision, tokens: row.tokenHashes,
     updated: row.updatedAt.getTime(), ...payload };
 }

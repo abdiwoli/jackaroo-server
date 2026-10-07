@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { createGame, startGame } from './jackaroo/engine.js';
 import { LocalGameError } from './local-games.js';
-import { advanceRoom, authenticate, roomView, type Room } from './online-games.js';
+import { advanceRoom, authenticate, roomView, playerDisplayName, type Room } from './online-games.js';
 import type { RoomRepository } from './room-repository.js';
 
 const ttl = 24 * 60 * 60 * 1000;
@@ -18,12 +18,13 @@ export function createPersistentOnlineGameStore(repository: RoomRepository) {
       throw new LocalGameError(409, 'Board changed or room expired. Refresh your game.');
   }
   return {
-    async create() {
+    async create(name?: unknown) {
+      const displayName = playerDisplayName(name, 0);
       await repository.deleteExpired(Date.now());
       for (let attempt = 0; attempt < 5; attempt++) {
         const token = randomBytes(32).toString('hex');
         const room: Room = {
-          id: randomUUID(), code: randomBytes(4).toString('hex').toUpperCase(), revision: 0,
+          id: randomUUID(), code: randomBytes(4).toString('hex').toUpperCase(), revision: 0, names: [displayName, 'Player 2'],
           state: createGame([randomUUID(), randomUUID()]), tokens: [hashRoomToken(token)],
           updated: Date.now(), lastAction: null, lastPlayed: null,
         };
@@ -31,7 +32,8 @@ export function createPersistentOnlineGameStore(repository: RoomRepository) {
       }
       throw new LocalGameError(503, 'Could not allocate a room. Try again.');
     },
-    async join(code: unknown) {
+    async join(code: unknown, name?: unknown) {
+      const displayName = playerDisplayName(name, 1);
       if (typeof code !== 'string' || !/^[A-F0-9]{8}$/.test(code.trim().toUpperCase()))
         throw new LocalGameError(400, 'Enter the 8-character room code.');
       const room = active(await repository.findByCode(code.trim().toUpperCase()));
@@ -40,6 +42,7 @@ export function createPersistentOnlineGameStore(repository: RoomRepository) {
       const token = randomBytes(32).toString('hex');
       const state = startGame(room.state);
       room.tokens.push(hashRoomToken(token));
+      room.names = [room.names?.[0] ?? 'Player 1', displayName];
       room.state = state; room.revision++; room.updated = Date.now();
       await commit(room, revision);
       return { token, game: roomView(room, 1) };

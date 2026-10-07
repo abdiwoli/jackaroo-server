@@ -31,6 +31,32 @@ function repositoryFixture() {
   return { rows, repository };
 }
 
+test('room names survive independent servers, moves and legacy rooms', async () => {
+  const { repository, rows } = repositoryFixture();
+  const first = createPersistentOnlineGameStore(repository);
+  const host = await first.create('  Abdi   Woli  ');
+  const second = createPersistentOnlineGameStore(repository);
+  const guest = await second.join(host.game.roomCode, 'محمد');
+  assert.deepEqual(guest.game.players.map(player => player.name), ['Abdi Woli', 'محمد']);
+  const current = await first.get(host.game.id, host.token);
+  const next = await first.act(host.game.id, host.token, current.revision, current.legalActions[0]!.action);
+  assert.deepEqual(next.players.map(player => player.name), ['Abdi Woli', 'محمد']);
+  assert.deepEqual((await second.get(host.game.id, guest.token)).players.map(player => player.name), ['Abdi Woli', 'محمد']);
+  delete rows.get(host.game.id)!.names;
+  assert.deepEqual((await second.get(host.game.id, guest.token)).players.map(player => player.name), ['Player 1', 'Player 2']);
+});
+
+test('invalid names cannot allocate rooms or consume the guest seat', async () => {
+  const { repository, rows } = repositoryFixture();
+  const store = createPersistentOnlineGameStore(repository);
+  for (const name of [42, {}, 'a'.repeat(25), 'hello\u202Eworld']) await assert.rejects(store.create(name), /name/);
+  assert.equal(rows.size, 0);
+  const host = await store.create();
+  await assert.rejects(store.join(host.game.roomCode, 'a'.repeat(25)), /name/);
+  const guest = await store.join(host.game.roomCode);
+  assert.deepEqual(guest.game.players.map(player => player.name), ['Player 1', 'Player 2']);
+});
+
 test('persistent rooms survive store recreation, keep hands private and store only token hashes', async () => {
   const { repository, rows } = repositoryFixture();
   const first = createPersistentOnlineGameStore(repository);

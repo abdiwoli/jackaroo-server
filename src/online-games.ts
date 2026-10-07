@@ -5,9 +5,19 @@ import type { GameAction, GameState, LegalAction } from './jackaroo/types.js';
 import { LocalGameError } from './local-games.js';
 
 export interface Room {
+  names?: string[];
   id: string; code: string; revision: number; state: GameState; tokens: string[];
   updated: number; lastAction: LegalAction | null;
   lastPlayed: { card: GameState['discard'][number]; playerId: string; revision: number } | null;
+}
+export function playerDisplayName(value: unknown, seat: number): string {
+  if (value === undefined || value === '') return `Player ${seat + 1}`;
+  if (typeof value !== 'string') throw new LocalGameError(400, 'Enter a player name.');
+  const name = value.normalize('NFC').trim().replace(/\s+/gu, ' ');
+  if (!name) return `Player ${seat + 1}`;
+  if ([...name].length > 24 || /[\p{Cc}\p{Cf}]/u.test(name))
+    throw new LocalGameError(400, 'Use a name of up to 24 characters without control characters.');
+  return name;
 }
 export function authenticate(room: Room, token: string) {
   const seat = token ? room.tokens.indexOf(token) : -1;
@@ -23,7 +33,7 @@ export function roomView(room: Room, seat: number) {
     board: structuredClone(state.board), currentPlayerId: state.currentPlayerId,
     winnerId: state.winnerId, handNumber: state.handNumber,
     pendingDiscardPlayerId: state.pendingDiscardPlayerId,
-    players: state.players.map((p, index) => ({ id: p.id, name: `Player ${index + 1}`,
+    players: state.players.map((p, index) => ({ id: p.id, name: room.names?.[index] ?? `Player ${index + 1}`,
       start: p.start, marbles: structuredClone(p.marbles), cardCount: p.hand.length })),
     hand: structuredClone(player.hand),
     legalActions: state.currentPlayerId === player.id ? getLegalActions(state) : [],
@@ -60,25 +70,28 @@ export function createOnlineGameStore() {
     return room;
   }
   return {
-    create() {
+    create(name?: unknown) {
+      const displayName = playerDisplayName(name, 0);
       for (const [id, room] of rooms) if (Date.now() - room.updated > 86400000) rooms.delete(id);
       if (rooms.size >= 1000) throw new LocalGameError(503, 'Room capacity reached. Try again later.');
       let code: string;
       do { code = randomBytes(4).toString('hex').toUpperCase(); }
       while ([...rooms.values()].some(room => room.code === code));
-      const room: Room = { id: randomUUID(), code, revision: 0,
+      const room: Room = { id: randomUUID(), code, revision: 0, names: [displayName, 'Player 2'],
         state: createGame([randomUUID(), randomUUID()]), tokens: [randomBytes(32).toString('hex')],
         updated: Date.now(), lastAction: null, lastPlayed: null };
       rooms.set(room.id, room);
       return { token: room.tokens[0]!, game: roomView(room, 0) };
     },
-    join(code: unknown) {
+    join(code: unknown, name?: unknown) {
+      const displayName = playerDisplayName(name, 1);
       if (typeof code !== 'string' || !/^[A-F0-9]{8}$/.test(code.trim().toUpperCase()))
         throw new LocalGameError(400, 'Enter the 8-character room code.');
       const found = [...rooms.values()].find(room => room.code === code.trim().toUpperCase());
       if (!found) throw new LocalGameError(404, 'Room not found. Check the code.');
       const room = lookup(found.id);
       if (room.tokens.length === 2) throw new LocalGameError(409, 'This room already has two players.');
+      room.names = [room.names?.[0] ?? 'Player 1', displayName];
       room.tokens.push(randomBytes(32).toString('hex'));
       room.state = startGame(room.state); room.revision++; room.updated = Date.now();
       return { token: room.tokens[1]!, game: roomView(room, 1) };
