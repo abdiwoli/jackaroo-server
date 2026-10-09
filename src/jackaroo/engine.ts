@@ -1,18 +1,23 @@
-import type { Card, CreateOptions, DiscardAction, GameAction, GameState, LegalAction, PlayAction, RandomOptions } from './types.js';
-import { marbleById, playerById, V1_BOARD, validateBoard } from './board.js';
+import type { Card, CreateOptions, DiscardAction, GameAction, GameMode, GameState, LegalAction, PlayAction, RandomOptions } from './types.js';
+import { boardForMode, marbleById, playerById, playerTeamId, validateBoard } from './board.js';
 import { createDeck, shuffle, validateDeck } from './deck.js';
 import { MOVEMENT, RuleError, requireRule, V1_RULES } from './rules.js';
 import { assertGameState, previewPlay, validateActor } from './validation.js';
 
-export function createGame(playerIds: readonly string[] = ['player-1', 'player-2'], options: CreateOptions = {}): GameState {
-  requireRule(playerIds.length === V1_RULES.playerCount && new Set(playerIds).size === playerIds.length && playerIds.every(id => typeof id === 'string' && id.length > 0), 'Expected two unique player IDs');
-  const board = structuredClone(options.board ?? V1_BOARD);
+function playerCount(mode: GameMode) { return mode === '1v1' ? 2 : mode === '3p' ? 3 : 4; }
+
+export function createGame(playerIds?: readonly string[], options: CreateOptions = {}): GameState {
+  const mode = options.mode ?? (playerIds?.length === 3 ? '3p' : playerIds?.length === 4 ? '4p' : '1v1');
+  const ids = playerIds ?? Array.from({ length: playerCount(mode) }, (_, index) => `player-${index + 1}`);
+  requireRule(ids.length === playerCount(mode) && new Set(ids).size === ids.length && ids.every(id => typeof id === 'string' && id.length > 0), `Expected ${playerCount(mode)} unique player IDs for ${mode}`);
+  const board = structuredClone(options.board ?? boardForMode(mode));
+  requireRule(board.starts.length === ids.length, 'Board start count must match player count');
   validateBoard(board);
   const deck = options.deck ? structuredClone(options.deck) : shuffle(createDeck(), options.rng);
   validateDeck(deck);
   const state: GameState = {
-    status: 'created', board,
-    players: playerIds.map((id, index) => ({ id, start: board.starts[index]!, hand: [],
+    status: 'created', mode, board,
+    players: ids.map((id, index) => ({ id, start: board.starts[index]!, teamId: mode === '2v2' ? `team-${index % 2 === 0 ? 'a' : 'b'}` : id, hand: [],
       marbles: Array.from({ length: board.marblesPerPlayer }, (_, marbleIndex) => ({ id: `${id}:marble:${marbleIndex}`, playerId: id, location: { kind: 'base' } })),
     })),
     deck, discard: [], currentPlayerId: null, handNumber: 0,
@@ -122,9 +127,12 @@ export function getLegalCards(state: GameState): Card[] {
 }
 
 export function checkWinner(state: GameState): string | null {
-  return state.players.find(player => player.marbles.length === state.board.marblesPerPlayer &&
+  const complete = (player: GameState['players'][number]) => player.marbles.length === state.board.marblesPerPlayer &&
     player.marbles.every(marble => marble.location.kind === 'home') &&
-    new Set(player.marbles.map(marble => marble.location.kind === 'home' ? marble.location.position : -1)).size === state.board.homeSize)?.id ?? null;
+    new Set(player.marbles.map(marble => marble.location.kind === 'home' ? marble.location.position : -1)).size === state.board.homeSize;
+  if (state.mode !== '2v2') return state.players.find(complete)?.id ?? null;
+  const teams = new Set(state.players.map(player => playerTeamId(state, player)));
+  return [...teams].find(team => state.players.filter(player => playerTeamId(state, player) === team).every(complete)) ?? null;
 }
 
 function nextTurnOnDraft(state: GameState, options: RandomOptions) {

@@ -1,5 +1,5 @@
 import type { Card, GameAction, GameState, LegalAction, PlayAction } from './types.js';
-import { playerById, validateBoard } from './board.js';
+import { playerById, playerTeamId, validateBoard } from './board.js';
 import { validateDeck } from './deck.js';
 import { validateCardAction } from './cards.js';
 import { moveOnDraft, releaseOnDraft, swapOnDraft } from './movement.js';
@@ -39,7 +39,9 @@ export function previewPlay(state: GameState, action: PlayAction): { draft: Game
 // Trusted-state integrity check, also useful for exact test fixtures.
 export function assertGameState(state: GameState) {
   validateBoard(state.board);
-  requireRule(state.players.length === V1_RULES.playerCount && new Set(state.players.map(player => player.id)).size === state.players.length, 'Invalid players');
+  const expectedCount = state.mode === '3p' ? 3 : state.mode === '4p' || state.mode === '2v2' ? 4 : V1_RULES.playerCount;
+  requireRule(state.players.length === expectedCount && state.board.starts.length === expectedCount && new Set(state.players.map(player => player.id)).size === state.players.length, 'Invalid players');
+  if (state.mode === '2v2') requireRule(new Set(state.players.map(player => playerTeamId(state, player))).size === 2 && state.players.every(teamPlayer => state.players.filter(player => playerTeamId(state, player) === playerTeamId(state, teamPlayer)).length === 2), 'Invalid team seats');
   const occupied = new Set<string>();
   const marbleIds = new Set<string>();
   state.players.forEach((player, index) => {
@@ -58,5 +60,8 @@ export function assertGameState(state: GameState) {
   validateDeck([...state.deck, ...state.discard, ...state.players.flatMap(player => player.hand)]);
   requireRule(state.pendingDiscardPlayerId === null || state.players.some(player => player.id === state.pendingDiscardPlayerId), 'Invalid pending discard');
   requireRule(state.status !== 'playing' || state.players.some(player => player.id === state.currentPlayerId), 'Invalid current player');
-  requireRule(state.status !== 'finished' || (state.currentPlayerId === null && state.players.some(player => player.id === state.winnerId)), 'Invalid finished state');
+  const validWinner = state.mode === '2v2'
+    ? state.players.some(player => playerTeamId(state, player) === state.winnerId)
+    : state.players.some(player => player.id === state.winnerId);
+  requireRule(state.status !== 'finished' || (state.currentPlayerId === null && validWinner), 'Invalid finished state');
 }

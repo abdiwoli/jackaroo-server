@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { applyAction, createGame, getLegalActions, startGame } from './jackaroo/engine.js';
 import { requireRule } from './jackaroo/rules.js';
-import type { GameAction, GameState } from './jackaroo/types.js';
+import type { GameAction, GameMode, GameState } from './jackaroo/types.js';
 
 interface LocalGame { id: string; revision: number; state: GameState; lastPlayed: { card: GameState['discard'][number]; playerId: string; revision: number } | null }
 export class LocalGameError extends Error {
@@ -19,11 +19,12 @@ export function createLocalGameStore() {
     const current = state.players.find(player => player.id === state.currentPlayerId);
     return {
       id: game.id, revision: game.revision, status: state.status,
+      mode: state.mode,
       board: structuredClone(state.board), currentPlayerId: state.currentPlayerId,
       winnerId: state.winnerId, handNumber: state.handNumber,
       pendingDiscardPlayerId: state.pendingDiscardPlayerId,
       players: state.players.map(player => ({
-        id: player.id, start: player.start, marbles: structuredClone(player.marbles), cardCount: player.hand.length,
+        id: player.id, start: player.start, teamId: player.teamId, marbles: structuredClone(player.marbles), cardCount: player.hand.length,
       })),
       hand: structuredClone(current?.hand ?? []), legalActions: getLegalActions(state),
       discardCards: structuredClone(state.discard.slice(-5)), discardCount: state.discard.length,
@@ -31,8 +32,11 @@ export function createLocalGameStore() {
     };
   }
   return {
-    create() {
-      const game: LocalGame = { id: randomUUID(), revision: 0, state: startGame(createGame(['Player 1', 'Player 2'])), lastPlayed: null };
+    create(mode: unknown = '1v1') {
+      requireRule(mode === '1v1' || mode === '3p' || mode === '4p' || mode === '2v2', 'Unknown game mode');
+      const count = mode === '1v1' ? 2 : mode === '3p' ? 3 : 4;
+      const ids = Array.from({ length: count }, (_, index) => `Player ${index + 1}`);
+      const game: LocalGame = { id: randomUUID(), revision: 0, state: startGame(createGame(ids, { mode: mode as GameMode })), lastPlayed: null };
       games.set(game.id, game);
       return view(game);
     },

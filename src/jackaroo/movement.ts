@@ -1,5 +1,5 @@
 import type { GameState, LegalAction, Location, Marble } from './types.js';
-import { isProtected, marbleById, playerById, relativePosition, trackOccupant, wrap } from './board.js';
+import { isProtected, marbleById, playerById, playerTeamId, relativePosition, trackOccupant, wrap } from './board.js';
 import { requireRule } from './rules.js';
 
 function capture(marble: Marble, result: LegalAction) {
@@ -11,9 +11,11 @@ function capture(marble: Marble, result: LegalAction) {
 export function moveOnDraft(state: GameState, playerId: string, marbleId: string, steps: number, king: boolean, result: LegalAction, five = false) {
   const marble = marbleById(state, marbleId);
   const owner = playerById(state, marble.playerId);
+  const actor = playerById(state, playerId);
+  const enemy = playerTeamId(state, owner) !== playerTeamId(state, actor);
   requireRule(five || marble.playerId === playerId, 'Cannot move an opponent marble');
   if (five) requireRule(marble.location.kind === 'track' && !isProtected(state, marble), 'Five requires an unprotected track marble');
-  const bypassHome = five && marble.playerId !== playerId;
+  const bypassHome = five && enemy;
   requireRule(marble.location.kind !== 'base', 'Base marble cannot move');
   requireRule(steps > 0 || marble.location.kind === 'track', 'Four is track-only');
   let location: Location = structuredClone(marble.location);
@@ -40,7 +42,7 @@ export function moveOnDraft(state: GameState, playerId: string, marbleId: string
       requireRule(!isProtected(state, occupant), 'Protected start blocks movement');
       if (king) capture(occupant, result);
       else if (step === Math.abs(steps)) {
-        requireRule(occupant.playerId !== owner.id, 'Own destination occupied');
+        requireRule(playerTeamId(state, playerById(state, occupant.playerId)) !== playerTeamId(state, owner), 'Own destination occupied');
         capture(occupant, result);
       }
     }
@@ -56,7 +58,7 @@ export function releaseOnDraft(state: GameState, playerId: string, marbleId: str
   requireRule(marble.playerId === playerId && marble.location.kind === 'base', 'Release requires own base marble');
   const occupant = trackOccupant(state, player.start);
   if (occupant) {
-    requireRule(occupant.playerId !== playerId && !isProtected(state, occupant), 'Start occupied');
+    requireRule(playerTeamId(state, playerById(state, occupant.playerId)) !== playerTeamId(state, player) && !isProtected(state, occupant), 'Start occupied');
     capture(occupant, result);
   }
   marble.location = { kind: 'track', position: player.start };

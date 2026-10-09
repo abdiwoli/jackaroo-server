@@ -17,3 +17,156 @@ model GameRoom {
 
   @@index([expiresAt])
 }
+
+model User {
+  id              String              @id @default(uuid()) @db.Uuid
+  email           String?             @unique @db.VarChar(254)
+  displayName     String              @db.VarChar(40)
+  passwordHash    String?
+  isGuest         Boolean             @default(false)
+  emailVerifiedAt DateTime?           @db.Timestamptz(3)
+  createdAt       DateTime            @default(now()) @db.Timestamptz(3)
+  sessions        AccountSession[]
+  identities      AuthIdentity[]
+  emailTokens     EmailActionToken[]
+  memberships     RoomMember[]
+  ownedRooms      CommunityRoom[]     @relation("CommunityRoomOwner")
+  comments        RoomComment[]
+  gameInvites     RoomGameInvite[]
+}
+
+enum IdentityProvider {
+  GOOGLE
+  APPLE
+}
+
+model AuthIdentity {
+  provider  IdentityProvider
+  subject   String           @db.VarChar(255)
+  userId    String           @db.Uuid
+  createdAt DateTime         @default(now()) @db.Timestamptz(3)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, subject])
+  @@index([userId])
+}
+
+enum EmailAction {
+  VERIFY
+  RESET_PASSWORD
+}
+
+model EmailActionToken {
+  tokenHash String      @id @db.Char(64)
+  userId    String      @db.Uuid
+  action    EmailAction
+  expiresAt DateTime    @db.Timestamptz(3)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, action])
+  @@index([expiresAt])
+}
+
+model AccountSession {
+  tokenHash String   @id @db.Char(64)
+  userId    String   @db.Uuid
+  expiresAt DateTime @db.Timestamptz(3)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+enum RoomRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum MicPermission {
+  AUDIENCE
+  REQUESTED
+  SPEAKER
+}
+
+model CommunityRoom {
+  id          String       @id @default(uuid()) @db.Uuid
+  ownerId     String       @db.Uuid
+  name        String       @db.VarChar(64)
+  description String       @default("") @db.VarChar(500)
+  isPublic    Boolean      @default(true)
+  createdAt   DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime     @updatedAt @db.Timestamptz(3)
+  owner       User         @relation("CommunityRoomOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  members     RoomMember[]
+  comments    RoomComment[]
+  games       RoomGame[]
+
+  @@index([isPublic, updatedAt])
+  @@index([ownerId])
+}
+
+model RoomMember {
+  roomId       String        @db.Uuid
+  userId       String        @db.Uuid
+  role         RoomRole      @default(MEMBER)
+  micPermission MicPermission @default(AUDIENCE)
+  joinedAt     DateTime      @default(now()) @db.Timestamptz(3)
+  room         CommunityRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([roomId, userId])
+  @@index([userId, joinedAt])
+  @@index([roomId, micPermission])
+}
+
+model RoomComment {
+  id        String        @id @default(uuid()) @db.Uuid
+  roomId    String        @db.Uuid
+  userId    String        @db.Uuid
+  body      String        @db.VarChar(500)
+  createdAt DateTime      @default(now()) @db.Timestamptz(3)
+  room      CommunityRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, createdAt])
+}
+
+enum RoomGameMode {
+  PLAYER_1V1
+  PLAYER_3
+  PLAYER_4
+  TEAM_2V2
+}
+
+enum GameInviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+model RoomGame {
+  id        String           @id @default(uuid()) @db.Uuid
+  roomId    String           @db.Uuid
+  mode      RoomGameMode
+  revision  Int              @default(0)
+  state     Json
+  createdAt DateTime         @default(now()) @db.Timestamptz(3)
+  room      CommunityRoom    @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  invites   RoomGameInvite[]
+
+  @@index([roomId, createdAt])
+}
+
+model RoomGameInvite {
+  gameId   String           @db.Uuid
+  userId   String           @db.Uuid
+  seat     Int
+  status   GameInviteStatus @default(PENDING)
+  game     RoomGame         @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([gameId, userId])
+  @@unique([gameId, seat])
+  @@index([userId, status])
+}

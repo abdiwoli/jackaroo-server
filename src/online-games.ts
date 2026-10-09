@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { applyAction, createGame, getLegalActions, startGame } from './jackaroo/engine.js';
-import type { GameAction, GameState, LegalAction } from './jackaroo/types.js';
+import type { GameAction, GameMode, GameState, LegalAction } from './jackaroo/types.js';
 import { LocalGameError } from './local-games.js';
 
 export interface Room {
@@ -28,13 +28,13 @@ export function roomView(room: Room, seat: number) {
   const state = room.state;
   const player = state.players[seat]!;
   return {
-    id: room.id, roomCode: room.code, revision: room.revision, status: state.status,
+    id: room.id, roomCode: room.code, revision: room.revision, status: state.status, mode: state.mode,
     viewerPlayerId: player.id, joinedPlayers: room.tokens.length,
     board: structuredClone(state.board), currentPlayerId: state.currentPlayerId,
     winnerId: state.winnerId, handNumber: state.handNumber,
     pendingDiscardPlayerId: state.pendingDiscardPlayerId,
     players: state.players.map((p, index) => ({ id: p.id, name: room.names?.[index] ?? `Player ${index + 1}`,
-      start: p.start, marbles: structuredClone(p.marbles), cardCount: p.hand.length })),
+      start: p.start, teamId: p.teamId, marbles: structuredClone(p.marbles), cardCount: p.hand.length })),
     hand: structuredClone(player.hand),
     legalActions: state.currentPlayerId === player.id ? getLegalActions(state) : [],
     discardCards: structuredClone(state.discard.slice(-5)), discardCount: state.discard.length,
@@ -70,31 +70,39 @@ export function createOnlineGameStore() {
     return room;
   }
   return {
-    create(name?: unknown) {
+    create(name?: unknown, requestedMode: unknown = '1v1') {
+      if (requestedMode !== '1v1' && requestedMode !== '3p' && requestedMode !== '4p' && requestedMode !== '2v2')
+        throw new LocalGameError(400, 'Unknown game mode.');
+      const mode = requestedMode as GameMode;
       const displayName = playerDisplayName(name, 0);
+      const count = mode === '1v1' ? 2 : mode === '3p' ? 3 : 4;
       for (const [id, room] of rooms) if (Date.now() - room.updated > 86400000) rooms.delete(id);
       if (rooms.size >= 1000) throw new LocalGameError(503, 'Room capacity reached. Try again later.');
       let code: string;
       do { code = randomBytes(4).toString('hex').toUpperCase(); }
       while ([...rooms.values()].some(room => room.code === code));
-      const room: Room = { id: randomUUID(), code, revision: 0, names: [displayName, 'Player 2'],
-        state: createGame([randomUUID(), randomUUID()]), tokens: [randomBytes(32).toString('hex')],
+      const room: Room = { id: randomUUID(), code, revision: 0, names: Array.from({ length: count }, (_, i) => i === 0 ? displayName : `Player ${i + 1}`),
+        state: createGame(Array.from({ length: count }, () => randomUUID()), { mode }), tokens: [randomBytes(32).toString('hex')],
         updated: Date.now(), lastAction: null, lastPlayed: null };
       rooms.set(room.id, room);
       return { token: room.tokens[0]!, game: roomView(room, 0) };
     },
     join(code: unknown, name?: unknown) {
-      const displayName = playerDisplayName(name, 1);
       if (typeof code !== 'string' || !/^[A-F0-9]{8}$/.test(code.trim().toUpperCase()))
         throw new LocalGameError(400, 'Enter the 8-character room code.');
       const found = [...rooms.values()].find(room => room.code === code.trim().toUpperCase());
       if (!found) throw new LocalGameError(404, 'Room not found. Check the code.');
       const room = lookup(found.id);
-      if (room.tokens.length === 2) throw new LocalGameError(409, 'This room already has two players.');
-      room.names = [room.names?.[0] ?? 'Player 1', displayName];
+      const capacity = room.state.players.length;
+      if (room.tokens.length === capacity) throw new LocalGameError(409, 'This room is full.');
+      const seat = room.tokens.length;
+      const displayName = playerDisplayName(name, seat);
+      room.names = room.names ?? room.state.players.map((_, index) => `Player ${index + 1}`);
+      room.names[seat] = displayName;
       room.tokens.push(randomBytes(32).toString('hex'));
-      room.state = startGame(room.state); room.revision++; room.updated = Date.now();
-      return { token: room.tokens[1]!, game: roomView(room, 1) };
+      if (room.tokens.length === capacity) room.state = startGame(room.state);
+      room.revision++; room.updated = Date.now();
+      return { token: room.tokens[seat]!, game: roomView(room, seat) };
     },
     get(id: string, token: string) {
       const room = lookup(id);

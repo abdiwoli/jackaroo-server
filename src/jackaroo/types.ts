@@ -2,6 +2,7 @@ export const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q
 export const SUITS = ['hearts', 'diamonds', 'clubs', 'spades'] as const;
 export type Rank = typeof RANKS[number];
 export type Suit = typeof SUITS[number];
+export type GameMode = '1v1' | '3p' | '4p' | '2v2';
 export interface Card { id: string; rank: Rank; suit: Suit }
 export interface BoardConfig {
   trackSize: number;
@@ -11,8 +12,9 @@ export interface BoardConfig {
 }
 export type Location = { kind: 'base' } | { kind: 'track'; position: number } | { kind: 'home'; position: number };
 export interface Marble { id: string; playerId: string; location: Location }
-export interface Player { id: string; start: number; marbles: Marble[]; hand: Card[] }
+export interface Player { id: string; start: number; teamId?: string; marbles: Marble[]; hand: Card[] }
 export interface GameState {
+  mode?: GameMode;
   status: 'created' | 'playing' | 'finished';
   board: BoardConfig;
   players: Player[];
@@ -44,4 +46,4 @@ export interface LegalAction {
 }
 export type RNG = () => number;
 export interface RandomOptions { rng?: RNG }
-export interface CreateOptions extends RandomOptions { board?: BoardConfig; deck?: Card[] }
+export interface CreateOptions extends RandomOptions { board?: BoardConfig; deck?: Card[]; mode?: GameMode }

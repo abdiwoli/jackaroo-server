@@ -1,6 +1,6 @@
-# Jackaroo App V1 engine
+# Jackaroo game engine
 
-Pure TypeScript 1v1 engine. Import from `./index.js`. It has no transport, database, mobile, or UI dependencies. The authoritative rules live in the workspace's `JACKAROO-RULES.md`.
+Pure TypeScript rules engine for 1v1, three-player, four-player, and 2v2 team games. Import from `./index.js`. It has no transport, database, mobile, or UI dependencies. The authoritative 1v1 rules live in the workspace's `JACKAROO-RULES.md`; multi-player and team rules live in `GAME-MODES.md`.
 
 ```typescript
 import { createGame, startGame, getLegalActions, applyAction } from './jackaroo/index.js';
@@ -15,7 +15,7 @@ This is an API example, not a simulation or network endpoint.
 
 ## Transitions
 
-`createGame(ids, { deck?, rng?, board? })` creates a game with base marbles. Inject a complete physical deck to preserve exact order, or inject an RNG to control shuffling. The default uses `Math.random`; all transition randomness is injectable, and no RNG is stored in state.
+`createGame(ids, { mode?, deck?, rng?, board? })` creates a game with base marbles. Mode defaults to 1v1 and is inferred from three or four supplied player IDs when omitted. Inject a complete physical deck to preserve exact order, or inject an RNG to control shuffling. The default uses `Math.random`; all transition randomness is injectable, and no RNG is stored in state.
 
 `startGame(state)` deals the first hand. `applyAction(state, action, { rng? })` dispatches a play or validated forced discard, consumes the card, checks winning, advances scheduled turns, and redeals when needed. `playCard` and `discardCard` are also available separately. Every transition returns a detached new state. Invalid actions throw `RuleError` and leave input state unchanged.
 

@@ -23,6 +23,7 @@
   "dependencies": {
     "@prisma/client": "6.19.0",
     "dotenv": "^16.6.1",
+    "jose": "^5.10.0",
     "livekit-server-sdk": "^2.19.1"
   },
   "devDependencies": {

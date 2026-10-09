@@ -25,7 +25,7 @@ export function createConfiguredOnlineGameStore(): OnlineGameStore {
       });
   }
   return {
-    create: async name => (await load()).create(name),
+    create: async (name, mode) => (await load()).create(name, mode),
     join: async (code, name) => (await load()).join(code, name),
     get: async (id, token) => (await load()).get(id, token),
     act: async (id, token, revision, action) => (await load()).act(id, token, revision, action),
